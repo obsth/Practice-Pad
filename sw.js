@@ -1,5 +1,5 @@
 // Offline-Speicher der Pad-Routine. Bei einer neuen App-Version VERSION erhöhen.
-const VERSION = 'pad-routine-v4';
+const VERSION = 'pad-routine-v5';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

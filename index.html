@@ -21,17 +21,17 @@
 /* Layout: eine schmale Übe-Spalte – oben die laufende Übung wie ein Pult, darunter Plan und Verlauf */
 :root{
   --bg:#E9ECEF; --surface:#F8F9FA; --ink:#14171B; --muted:#5B6470; --line:#D2D7DD;
-  --right:#2251C8; --left:#B4651A; --on-accent:#FFFFFF; --good:#2E7D4F;
+  --right:#2251C8; --left:#B4651A; --kick:#7A3FB8; --on-accent:#FFFFFF; --good:#2E7D4F;
   --f-display:"Barlow Condensed","Arial Narrow",sans-serif;
   --f-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
 }
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#0F1216; --surface:#181C22; --ink:#E7EBF0; --muted:#8C96A3; --line:#2A3038;
-  --right:#7097FF; --left:#E59B4B; --on-accent:#0F1216; --good:#5CC48A; color-scheme:dark}}
+  --right:#7097FF; --left:#E59B4B; --kick:#B58CF0; --on-accent:#0F1216; --good:#5CC48A; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F1216; --surface:#181C22; --ink:#E7EBF0; --muted:#8C96A3; --line:#2A3038;
-  --right:#7097FF; --left:#E59B4B; --on-accent:#0F1216; --good:#5CC48A; color-scheme:dark}
+  --right:#7097FF; --left:#E59B4B; --kick:#B58CF0; --on-accent:#0F1216; --good:#5CC48A; color-scheme:dark}
 
 *{box-sizing:border-box}
 body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.45}
@@ -67,7 +67,8 @@ h2{font-family:var(--f-display);font-weight:600;font-size:15px;letter-spacing:.1
 .beat:last-child{border-right:0}
 .n{position:relative;width:34px;height:44px;border-radius:7px;display:flex;align-items:center;justify-content:center;
   font-family:var(--f-mono);font-weight:700;font-size:19px;border:1.5px solid currentColor;transition:transform .06s}
-.n.R{color:var(--right)} .n.L{color:var(--left)}
+.n.R{color:var(--right)} .n.L{color:var(--left)} .n.K{color:var(--kick)}
+.n.X{color:var(--muted);border-style:dashed;opacity:.55}.n.X.hit{background:var(--line);transform:none}
 .n.acc::before{content:">";position:absolute;top:-15px;font-size:12px;color:var(--ink)}
 .n .g{position:absolute;top:2px;left:3px;font-size:10px;opacity:.85}
 .n.hit{background:currentColor;transform:scale(1.08)}
@@ -152,6 +153,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--right);outline-
 #cown{font-size:11px;color:var(--right);font-weight:600}
 .cprog.gap i{background:var(--left);transition:none}
 .cgrid{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;align-items:center;margin-bottom:12px}
+.cgrid .seg{max-width:100%;flex-wrap:wrap}.cgrid .seg button{padding:7px 9px}
 .cgrid>span{font-size:13px;font-weight:600;color:var(--muted)}.cgrid .seg,.cgrid .mini{justify-self:start}
 .clist{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .crow{display:grid;grid-template-columns:28px 1fr auto;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px;align-items:center}
@@ -178,6 +180,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--right);outline-
   <section id="cplan" hidden>
     <h2>Kombinations-Session</h2>
     <div class="cgrid">
+      <span>Übungen</span><div class="seg" role="group" aria-label="Art der Übungen" id="csrc"></div>
       <span>Anzahl</span><div class="seg" role="group" aria-label="Anzahl Kombinationen" id="ccnt"></div>
       <span>Wiederholungen</span><div class="seg" role="group" aria-label="Wiederholungen pro Kombination" id="creps"></div>
       <span>Notenwert</span><div class="seg" role="group" aria-label="Notenwert" id="cper"></div>
@@ -267,7 +270,7 @@ const PHASES=[{k:'Langsam',f:.2,m:.75},{k:'Wohlfühl',f:.4,m:1},{k:'Grenze',f:.2
 const KEY='pad-routine-v1';
 function load(){try{return JSON.parse(localStorage.getItem(KEY))||{}}catch(e){return {}}}
 function save(){S.ts=Date.now();try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}}
-const S=Object.assign({cgap:10,cbars:4,ctempo:{},tab:'rud',cwarm:true,ccount:12,creps:20,cper:4,cmax:4,cbpm:80,cdone:{},custom:[],mode:'phasen',vol:.9,mins:5,sel:['single','double','para'],bpm:{},hist:[],sub:false,count:true,vseed:0},load());
+const S=Object.assign({csrc:'hand',cgap:10,cbars:4,ctempo:{},tab:'rud',cwarm:true,ccount:12,creps:20,cper:4,cmax:4,cbpm:80,cdone:{},custom:[],mode:'phasen',vol:.9,mins:5,sel:['single','double','para'],bpm:{},hist:[],sub:false,count:true,vseed:0},load());
 RUD.forEach(r=>{if(!S.bpm[r.id])S.bpm[r.id]=r.bpm});
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 function parseSticking(raw){if(!/[RL]/.test(raw))raw=raw.toUpperCase();const pat=[];let a=0,g='';
@@ -496,6 +499,33 @@ const COMBOS=(()=>{const out=[];
   out.sort((x,y)=>x.score-y.score);
   out.forEach((c,i)=>c.lvl=1+Math.floor(i/64));
   return out})();
+// Fuß: Bassdrum (K) und Pause (-) auf 8 Positionen
+function fscore(s){let sc=0;const n=s.filter(x=>x==='K').length;
+  for(let i=0;i<8;i++)if(s[i]==='K'&&s[(i+1)%8]==='K'){sc+=2;if(s[(i+2)%8]==='K')sc+=2}   // Doppel- und Dreifachschläge
+  s.forEach((x,i)=>{if(x==='K'&&i%2===1)sc+=1});                                   // Schläge zwischen den Zählzeiten
+  if(s[0]!=='K')sc+=1;
+  if(s.slice(0,4).join('')===s.slice(4).join(''))sc-=1;
+  if(n===8)sc-=6;
+  return sc}
+// Hand + Fuß: lineare Folgen aus R, L und K mit 1 bis 3 Bassdrum-Schlägen
+function mscore(s){let sc=0;
+  for(let i=0;i<8;i++){if(s[i]==='K'&&s[(i+1)%8]==='K')sc+=3;if(s[i]==='K'&&i%2===1)sc+=1}
+  const h=s.filter(x=>x!=='K');let run=1;
+  for(let i=1;i<h.length;i++){if(h[i]===h[i-1]){run++;if(run===3)sc+=2}else run=1}
+  if(s[0]==='K')sc-=1;if(s[0]==='L'||(s[0]==='K'&&h[0]==='L'))sc+=1;
+  for(let i=1;i<7;i++)if(s[i]==='K'&&s[i-1]!=='K'&&s[i+1]!=='K'&&s[i-1]===s[i+1])sc+=1;  // gleiche Hand vor und nach dem Fuß
+  return sc}
+const SETS={hand:COMBOS};
+function comboSet(src){if(SETS[src])return SETS[src];const out=[];
+  if(src==='foot'){for(let b=255;b>=1;b--){const s=[];for(let i=7;i>=0;i--)s.push(b>>i&1?'K':'-');out.push({key:s.join(''),score:fscore(s)})}}
+  else{const A=['R','L','K'];for(let n=0;n<6561;n++){const s=[];let x=n;for(let i=0;i<8;i++){s.push(A[x%3]);x=Math.floor(x/3)}
+      const k=s.filter(c=>c==='K').length;if(k>=1&&k<=3)out.push({key:s.join(''),score:mscore(s)})}}
+  out.sort((x,y)=>x.score-y.score);const q=out.length/4;
+  out.forEach((c,i)=>c.lvl=1+Math.floor(i/q));
+  return SETS[src]=out}
+const WARM={hand:[['single','Single Strokes','RLRLRLRL'],['double','Double Strokes','RRLLRRLL']],
+  foot:[['fq','Bassdrum Viertel','K---K---'],['fe','Bassdrum Achtel','K-K-K-K-']],
+  mix:[['single','Single Strokes','RLRLRLRL'],['fe','Bassdrum Achtel','K-K-K-K-']]};
 const LVLN=['','leicht','mittel','anspruchsvoll','schwer'];
 const spaced=k=>k.slice(0,4)+' '+k.slice(4);
 let cst='idle', cphase='play', cseg=[], cIdx=0, cShown=0, cTimer=null, cq=[], cNext=0, cSegNote=0, cSegStart=0, cCountBeat=0;
@@ -506,14 +536,13 @@ const clampB=v=>Math.max(30,Math.min(260,Math.round(v)||0));
 function buildCombo(){
   const segs=[];
   if(S.cwarm){
-    const w=(id,name,pat)=>{const o={kind:'warm',id,name,pat,per:4,secs:150,bpm:S.bpm[id]};o.tempo=e=>Math.round(o.bpm*(0.7+0.3*Math.min(1,e/120)));return o};
-    segs.push(w('single','Warm-up · Single Strokes','RLRLRLRL'));
-    segs.push(w('double','Warm-up · Double Strokes','RRLLRRLL'));
+    const w=(id,name,pat)=>{const o={kind:'warm',id,name:'Warm-up · '+name,pat,per:4,secs:150,bpm:S.bpm[id]||80};o.tempo=e=>Math.round(o.bpm*(0.7+0.3*Math.min(1,e/120)));return o};
+    (WARM[S.csrc]||WARM.hand).forEach(a=>segs.push(w(...a)));
   }
   const picks=[];
   for(let l=1;l<=S.cmax;l++){
     const k=Math.floor(S.ccount/S.cmax)+(l<=S.ccount%S.cmax?1:0);
-    const pool=shuffle(COMBOS.filter(c=>c.lvl===l).slice());
+    const pool=shuffle(comboSet(S.csrc).filter(c=>c.lvl===l).slice());
     pool.sort((x,y)=>(S.cdone[x.key]||0)-(S.cdone[y.key]||0));   // seltener geübte zuerst, sonst zufällig
     picks.push(...shuffle(pool.slice(0,k)));
   }
@@ -603,7 +632,7 @@ function bindReview(){const p=cseg[cRevIdx],qv=document.getElementById('qv');if(
   qv.onfocus=cHold;qv.oninput=()=>{const x=parseInt(qv.value,10);if(x)cRevVal=x};
   document.getElementById('qs').onclick=()=>store(cRevVal)}
 
-const cDoneCount=()=>Object.keys(S.cdone).filter(k=>S.cdone[k]>0).length;
+const cDoneCount=()=>comboSet(S.csrc).filter(c=>S.cdone[c.key]>0).length;
 const cDuration=()=>cseg.reduce((t,s)=>t+(s.secs?s.secs:s.notes/s.per*60/S.cbpm),0);
 function renderCombo(){
   if(!cseg.length){cseg=buildCombo();cShown=0}
@@ -611,7 +640,7 @@ function renderCombo(){
     const n=cseg.filter(s=>s.kind==='combo').length;
     cdesk.innerHTML=`${cRevIdx>=0?reviewHTML(cRevIdx):''}
       <div class="review"><p class="rname">Session geschafft</p>
-      <p class="hint">${n} Kombinationen${S.cwarm?' plus Warm-up':''}. Bisher geübt: ${cDoneCount()} von 256 Kombinationen.</p>
+      <p class="hint">${n} Kombinationen${S.cwarm?' plus Warm-up':''}. Bisher geübt: ${cDoneCount()} von ${comboSet(S.csrc).length} Kombinationen.</p>
       <p>Starttempo für Kombinationen ohne gespeichertes Tempo:</p>
       <div class="stepper"><button class="btn" id="cm">−2</button><input id="crv" type="number" inputmode="numeric" value="${cRev}" aria-label="Starttempo in BPM"><button class="btn" id="cp">+2</button></div>
       <div class="transport"><button class="btn" id="cagain">Nochmal</button><button class="btn main" id="csv">Neue Session</button></div></div>`;
@@ -643,8 +672,8 @@ function renderCombo(){
         <div class="repl"><span class="rep" id="crep">${big}</span><span class="repof" id="crepof">${!gap&&!count&&!sg.secs?'/ '+S.creps:''}</span></div></div>
     </div>
     <div class="cprog${gap?' gap':''}"><i id="${gap?'cgapbar':'cbar'}" style="width:${gap?100:i/cseg.length*100}%"></i></div>
-    <div class="sticking">${groups.map(g=>`<div class="beat">${g.map(n=>`<div class="n ${n.h}" data-k="${n.k}"><span>${n.h}</span></div>`).join('')}</div>`).join('')}</div>
-    <div class="legend">${PERL[sg.per]}</div>
+    <div class="sticking">${groups.map(g=>`<div class="beat">${g.map(n=>`<div class="n ${n.h==='-'?'X':n.h}" data-k="${n.k}"><span>${n.h==='-'?'·':n.h}</span></div>`).join('')}</div>`).join('')}</div>
+    <div class="legend">${PERL[sg.per]}${/K/.test(sg.pat)?' · K = Bassdrum'+(/-/.test(sg.pat)?', · = Pause':''):''}</div>
     ${gap?'':`<div class="variation"><div><small>Als Nächstes</small><p class="nextp">${nx?(nx.kind==='combo'?spaced(nx.pat)+' · '+LVLN[nx.lvl]:nx.name):'Ende der Session'}</p></div></div>`}
     <div class="transport">
       <button class="btn" id="cagain">Nochmal</button>
@@ -668,6 +697,9 @@ function segBtns(id,vals,cur,lab,fn,keep){const el=document.getElementById(id);
   el.innerHTML=vals.map(v=>`<button aria-pressed="${cur===v}" data-v="${v}">${lab(v)}</button>`).join('');
   el.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(cst==='run'&&!keep)return;fn(+b.dataset.v);save();if(keep)renderCPlan();else cReset()})}
 function renderCPlan(){
+  const sr=document.getElementById('csrc');
+  sr.innerHTML=[['hand','Hände'],['foot','Fuß'],['mix','Hand + Fuß']].map(([k,l])=>`<button aria-pressed="${S.csrc===k}" data-k="${k}">${l}</button>`).join('');
+  sr.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(cst==='run'||S.csrc===b.dataset.k)return;S.csrc=b.dataset.k;save();cReset()});
   segBtns('ccnt',[8,12,16,24],S.ccount,v=>v,v=>S.ccount=v);
   segBtns('creps',[10,20,30,40,50],S.creps,v=>v+'×',v=>S.creps=v);
   segBtns('cper',[2,4],S.cper,v=>v===2?'Achtel':'Sechzehntel',v=>S.cper=v);
@@ -678,7 +710,7 @@ function renderCPlan(){
   const w=document.getElementById('cwarm');w.checked=S.cwarm;w.onchange=()=>{if(cst==='run'){w.checked=S.cwarm;return}S.cwarm=w.checked;save();cReset()};
   const sb=document.getElementById('csub');sb.checked=S.sub;sb.onchange=()=>{S.sub=sb.checked;document.getElementById('subdiv').checked=S.sub;save()};
   const vo=document.getElementById('cvol');vo.value=S.vol;vo.oninput=()=>{S.vol=+vo.value;document.getElementById('vol').value=S.vol;save();if(master)master.gain.value=S.vol*1.8};
-  document.getElementById('cinfo').textContent=`Dauer ca. ${Math.round(cDuration()/60)} Minuten · bisher geübt: ${cDoneCount()} von 256 Kombinationen`}
+  document.getElementById('cinfo').textContent=`Dauer ca. ${Math.round(cDuration()/60)} Minuten · bisher geübt: ${cDoneCount()} von ${comboSet(S.csrc).length} Kombinationen`}
 const cStep=d=>{S.cbpm=Math.max(30,Math.min(260,S.cbpm+d));cseg.forEach(o=>{if(o.kind==='combo'&&!S.ctempo[o.key]&&!(cst==='run'&&o===cseg[cShown]))o.bpm=S.cbpm});save();renderCList();renderCPlan();if(cst!=='run')renderCombo()};
 document.getElementById('cnew').onclick=cReset;
 document.getElementById('cbm').onclick=()=>cStep(-2);
@@ -705,7 +737,7 @@ document.getElementById('bimp').onchange=e=>{const f=e.target.files[0];if(!f)ret
   const rd=new FileReader();rd.onload=()=>{try{const d=JSON.parse(rd.result);
       if(!d||typeof d!=='object'||!d.bpm)throw 0;
       if(st==='run')pause();Object.keys(S).forEach(k=>delete S[k]);
-      Object.assign(S,{cgap:10,cbars:4,ctempo:{},tab:'rud',cwarm:true,ccount:12,creps:20,cper:4,cmax:4,cbpm:80,cdone:{},custom:[],mode:'phasen',vol:.9,mins:5,sel:[],bpm:{},hist:[],sub:false,count:true,vseed:0},d);
+      Object.assign(S,{csrc:'hand',cgap:10,cbars:4,ctempo:{},tab:'rud',cwarm:true,ccount:12,creps:20,cper:4,cmax:4,cbpm:80,cdone:{},custom:[],mode:'phasen',vol:.9,mins:5,sel:[],bpm:{},hist:[],sub:false,count:true,vseed:0},d);
       RUD.forEach(r=>{if(!S.bpm[r.id])S.bpm[r.id]=r.bpm});
       idx=0;acc=0;st='idle';save();renderPlan();renderHist();render();applyTab();if(cst!=='run')cReset();bmsg('Sicherung geladen.',1)}
     catch(err){bmsg('Diese Datei ist keine Sicherung der Pad-Routine.')}
