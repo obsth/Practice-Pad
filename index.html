@@ -137,6 +137,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--right);outline-
 .lvl i{width:8px;height:8px;border-radius:50%;background:var(--line)}.lvl i.on{background:var(--right)}
 .cprog{height:6px;background:var(--bg);border-radius:3px;overflow:hidden}.cprog i{display:block;height:100%;background:var(--right);transition:width .2s}
 .nextp{font-family:var(--f-mono)}
+.vline{display:flex;justify-content:space-between;gap:4px 10px;align-items:baseline;flex-wrap:wrap}.vline b{font-family:var(--f-display);font-size:19px;letter-spacing:.02em}.vline span{color:var(--muted);font-family:var(--f-mono);font-size:12px}
 .tempo{display:flex;align-items:center;gap:6px}.tempo .btn{padding:10px 8px;min-width:44px}
 .figs{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .fig{display:flex;flex-direction:column;gap:4px;min-width:0}.fig.r{align-items:flex-end;text-align:right;margin-left:auto}
@@ -209,7 +210,7 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--right);outline-
       <label class="toggle">Lautstärke <input type="range" id="vol" min="0.2" max="1" step="0.05"></label>
     </div>
     <div class="list" id="plan"></div>
-    <p class="hint" style="margin:10px 0 0">Das Tempo rechts ist dein Wohlfühltempo. 4 Phasen: langsam 75 %, Grenze +8 %, locker 90 %. Steigerung: Start 10 BPM unter dem Wohlfühltempo, dann alle 30 Sekunden +2 BPM.</p>
+    <p class="hint" style="margin:10px 0 0">Das Tempo rechts ist dein Wohlfühltempo. 4 Phasen: langsam 75 %, Grenze +8 %, locker 90 %. Steigerung: Start 10 BPM unter dem Wohlfühltempo, dann alle 30 Sekunden +2 BPM. Paradiddles wechseln alle 30 Sekunden automatisch die Variante und dauern dafür 1,5-mal so lang.</p>
   </section>
 
   <section id="rcustom">
@@ -251,9 +252,22 @@ const RUD=[
  {id:'dpara',name:'Double Paradiddle',per:6,bpm:70,pat:'RLRLRRLRLRLL'.split('').map((h,i)=>N(h,i%6===0))},
  {id:'pdd',name:'Paradiddle-diddle',per:6,bpm:70,pat:'RLRRLLRLRRLL'.split('').map((h,i)=>N(h,i%6===0))},
  {id:'six',name:'Six Stroke Roll',per:6,bpm:60,pat:'RLLRRLRLLRRL'.split('').map((h,i)=>N(h,i%6===0||i%6===5))},
+ {id:'five',name:'Five Stroke Roll',per:4,bpm:90,pat:[N('R'),N('R'),N('L'),N('L'),N('R',1),N('-'),N('-'),N('-'),N('L'),N('L'),N('R'),N('R'),N('L',1),N('-'),N('-'),N('-')]},
  {id:'flamtap',name:'Flam Tap',per:4,bpm:70,pat:[N('R',1,'l'),N('R'),N('L',1,'r'),N('L'),N('R',1,'l'),N('R'),N('L',1,'r'),N('L')]},
  {id:'dragtap',name:'Single Drag Tap',per:4,bpm:70,pat:[N('R',0,'ll'),N('L',1),N('L',0,'rr'),N('R',1),N('R',0,'ll'),N('L',1),N('L',0,'rr'),N('R',1)]},
 ];
+// Varianten: das Grundmuster wird Note für Note verschoben, beginnt aber immer mit rechts
+const mirrorS=s=>s.replace(/[RL]/g,h=>h==='R'?'L':'R');
+function mkVars(unit,count,rep,per,names){const seen=new Set,out=[];
+  for(let k=0;k<count;k++){let x=unit.slice(k)+unit.slice(0,k);if(x[0]==='L')x=mirrorS(x);if(seen.has(x))continue;seen.add(x);
+    out.push({name:(names&&names[out.length])||'Variante '+(out.length+1),pat:x.repeat(rep).split('').map((h,j)=>N(h,j%per===0))})}
+  return out}
+RUD.find(r=>r.id==='para').vars=mkVars('RLRRLRLL',4,1,4,['Standard','Inverted','Reverse','Delayed']);
+RUD.find(r=>r.id==='dpara').vars=mkVars('RLRLRRLRLRLL',6,1,6,['Standard']);
+RUD.find(r=>r.id==='pdd').vars=mkVars('RLRRLL',6,2,6,['Standard']);
+const VARSEC=30, VARLONG=1.5;   // Variantenwechsel alle 30 s, Übung dauert 1,5-mal so lang
+const varIdx=(r,e)=>r&&r.vars?Math.floor(Math.max(0,e)/VARSEC)%r.vars.length:0;
+let varI=0, shownVar=0;
 const VARI=[
  {t:'Beide Hände gleich laut – hör auf die schwächere Hand.'},
  {t:'Mit links beginnen. Das Sticking ist gespiegelt.',mirror:1},
@@ -291,17 +305,29 @@ let st='idle', idx=0, acc=0, playStart=0, countEnd=0, nextT=0, noteI=0, timer=nu
 let ctx=null;
 const queue=()=>S.sel.map(byId).filter(Boolean);
 const cur=()=>queue()[idx];
-const dur=()=>S.mins*60;
+const dur=()=>{const r=cur();return S.mins*60*(r&&r.vars?VARLONG:1)};
 function phaseAt(e){let t=0;for(let i=0;i<PHASES.length;i++){const d=PHASES[i].f*dur();if(e<t+d||i===PHASES.length-1)return{i,from:t,to:t+d};t+=d}}
 const bpmFor=(r,i)=>Math.round(S.bpm[r.id]*PHASES[i].m);
 const RAMP={step:2,every:30,start:10};
 let rampOff=0, lastB=0, master=null;
 function tempoAt(r,e){if(S.mode==='ramp')return Math.max(30,S.bpm[r.id]-RAMP.start+RAMP.step*Math.floor(e/RAMP.every)+rampOff);return bpmFor(r,phaseAt(e).i)}
 const suggest=r=>S.mode==='ramp'&&lastB?lastB:S.bpm[r.id];
-function ensureAudio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();const comp=ctx.createDynamicsCompressor();comp.threshold.value=-3;comp.ratio.value=12;comp.attack.value=0;master=ctx.createGain();master.connect(comp).connect(ctx.destination)}master.gain.value=S.vol*1.8;ctx.resume()}
-function pattern(r){const v=variation(r.id);if(!v.mirror)return r.pat;
-  const sw=h=>h==='R'?'L':h==='L'?'R':h==='r'?'l':'r';
-  return r.pat.map(n=>({h:sw(n.h),a:n.a,g:n.g.split('').map(sw).join('')}))}
+let ctxStale=false;
+function haltAll(){if(st==='run')pause();if(cst==='run')cPause()}
+function ensureAudio(){
+  if(ctx&&(ctxStale||ctx.state==='closed')){try{ctx.onstatechange=null;ctx.close()}catch(e){}ctx=null;master=null}
+  ctxStale=false;
+  if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();
+    ctx.onstatechange=()=>{if(ctx&&ctx.state!=='running'&&ctx.state!=='closed'&&(st==='run'||cst==='run')){haltAll();ctxStale=true}};const comp=ctx.createDynamicsCompressor();comp.threshold.value=-3;comp.ratio.value=12;comp.attack.value=0;master=ctx.createGain();master.connect(comp).connect(ctx.destination)}master.gain.value=S.vol*1.8;ctx.resume()}
+function pattern(r,vi){const v=variation(r.id),base=r.vars?r.vars[vi||0].pat:r.pat;if(!v.mirror)return base;
+  const sw=h=>h==='R'?'L':h==='L'?'R':h==='r'?'l':h==='l'?'r':h;
+  return base.map(n=>({h:sw(n.h),a:n.a,g:n.g.split('').map(sw).join('')}))}
+function stickHTML(r,pat){const beats=[];for(let i=0;i<pat.length;i+=r.per)beats.push(pat.slice(i,i+r.per).map((n,j)=>({...n,k:i+j})));
+  return beats.map(b=>`<div class="beat">${b.map(n=>`<div class="n ${n.h==='-'?'X':n.h}${n.a?' acc':''}" data-k="${n.k}"><span>${n.h==='-'?'·':n.h}</span>${n.g?`<span class="g">${n.g}</span>`:''}</div>`).join('')}</div>`).join('')}
+function paintVar(r,e){if(!r.vars)return;const n=r.vars.length,nx=(shownVar+1)%n;
+  const a=document.getElementById('vname'),b=document.getElementById('vnext');
+  if(a)a.textContent='Variante '+(shownVar+1)+' / '+n+(r.vars[shownVar].name.startsWith('Variante')?'':' · '+r.vars[shownVar].name);
+  if(b)b.textContent='danach '+pattern(r,nx).map(x=>x.h).join('').replace(new RegExp('(.{'+r.per+'})','g'),'$1 ').trim()+' · in '+fmt(VARSEC-(Math.max(0,e)%VARSEC))}
 
 function click(t,kind){const o=ctx.createOscillator(),g=ctx.createGain();
   o.type='square';
@@ -314,7 +340,7 @@ function startRun(){
   ensureAudio();
   const r=cur(), now=ctx.currentTime+.08, beat=60/tempoAt(r,acc);
   if(S.count){for(let b=0;b<4;b++)click(now+b*beat,b===0?2:1);countEnd=now+4*beat}else countEnd=now;
-  playStart=countEnd-acc; nextT=countEnd; noteI=0; q=[]; st='run';
+  playStart=countEnd-acc; nextT=countEnd; noteI=0; q=[]; varI=varIdx(r,acc); st='run';
   timer=setInterval(tick,25); requestWake(); render()}
 
 function tick(){
@@ -323,10 +349,10 @@ function tick(){
   if(now>=countEnd && e>=dur()){finish();return}
   while(nextT<now+.12){
     const pe=nextT-playStart; if(pe>=dur())break;
-    const tb=tempoAt(r,pe); lastB=tb; const step=60/tb/r.per, pos=noteI%r.pat.length;
+    const tb=tempoAt(r,pe); lastB=tb; const step=60/tb/r.per, pos=noteI%r.pat.length; if(pos===0)varI=varIdx(r,pe);
     const onBeat=noteI%r.per===0, bar=noteI%(r.per*4)===0;
     if(onBeat)click(nextT,bar?2:1); else if(S.sub)click(nextT,0);
-    q.push({t:nextT,pos}); nextT+=step; noteI++}
+    q.push({t:nextT,pos,vi:varI}); nextT+=step; noteI++}
 }
 function pause(){clearInterval(timer);acc=Math.max(0,ctx.currentTime-playStart);if(ctx.currentTime<countEnd)acc=Math.max(0,countEnd-playStart);st='pause';q=[];releaseWake();render()}
 function finish(){clearInterval(timer);st='review';q=[];acc=0;reviewVal=suggest(cur());releaseWake();render()}
@@ -339,7 +365,8 @@ function resetSession(){if(timer)clearInterval(timer);st='idle';idx=0;acc=0;ramp
 
 async function requestWake(){try{if(wake&&!wake.released)return;wake=await navigator.wakeLock.request('screen')}catch(e){wake=null}}
 function releaseWake(){}   // Display bleibt an, solange die App offen ist
-document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWake()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')requestWake();else{haltAll();if(ctx)ctxStale=true}});
+window.addEventListener('pagehide',()=>{haltAll();if(ctx)ctxStale=true});
 ['pointerdown','keydown'].forEach(ev=>document.addEventListener(ev,requestWake,{passive:true}));
 requestWake();
 
@@ -352,10 +379,10 @@ function render(){
   if(!list.length){desk.innerHTML='<p class="empty">Wähle unten mindestens ein Rudiment aus.</p>';return}
   if(st==='done'){
     desk.innerHTML=`<div class="review"><p class="rname">Fertig für heute</p>
-      <p class="hint">${list.length} Rudiments · ${list.length*S.mins} Minuten. Die neuen Tempi gelten ab der nächsten Runde.</p>
+      <p class="hint">${list.length} Rudiments · ${Math.round(list.reduce((t,x)=>t+S.mins*(x.vars?VARLONG:1),0))} Minuten. Die neuen Tempi gelten ab der nächsten Runde.</p>
       <div class="transport"><button class="btn main" id="again">Noch eine Runde</button></div></div>`;
     document.getElementById('again').onclick=()=>{st='idle';idx=0;render()};return}
-  const r=cur(), v=variation(r.id), pat=pattern(r);
+  const r=cur(), v=variation(r.id); if(st!=='run')shownVar=varIdx(r,acc); const pat=pattern(r,shownVar);
   if(st==='review'){
     desk.innerHTML=`<div class="review">
       <div class="rhead"><p class="rname">${r.name}</p><span class="rpos">${idx+1} / ${list.length}</span></div>
@@ -371,7 +398,6 @@ function render(){
     document.getElementById('sv').onclick=()=>{set(reviewVal);next(true)};
     document.getElementById('sk').onclick=()=>next(false);return}
 
-  const beats=[];for(let i=0;i<pat.length;i+=r.per)beats.push(pat.slice(i,i+r.per).map((n,j)=>({...n,k:i+j})));
   desk.innerHTML=`
     <div class="rhead"><p class="rname">${r.name}</p><span class="rpos">${idx+1} / ${list.length}</span></div>
     <div class="bpmrow"><span class="bpm" id="bpm">${tempoAt(r,acc)}</span><span class="bpmunit">BPM</span>
@@ -380,8 +406,9 @@ function render(){
       ?`<div class="ph" style="flex:1"><i></i><span>Steigerung ${tempoAt(r,0)} → ${tempoAt(r,dur()-1)} BPM</span></div>`
       :PHASES.map((p,i)=>`<div class="ph" style="flex:${p.f}"><i></i><span>${p.k} ${bpmFor(r,i)}</span></div>`).join('')}</div>
     ${S.mode==='ramp'?'<button class="btn small" id="slow" style="align-self:flex-start">Zu schnell: −4 BPM</button>':''}
-    <div class="sticking">${beats.map(b=>`<div class="beat">${b.map(n=>`<div class="n ${n.h}${n.a?' acc':''}" data-k="${n.k}"><span>${n.h}</span>${n.g?`<span class="g">${n.g}</span>`:''}</div>`).join('')}</div>`).join('')}</div>
-    <div class="legend">${PERL[r.per]||r.per+' Noten pro Klick'} · &gt; = Akzent${r.pat.some(n=>n.g)?' · kleine Buchstaben = Vorschlag':''}</div>
+    ${r.vars?`<div class="vline"><b id="vname"></b><span id="vnext"></span></div>`:''}
+    <div class="sticking" id="stk">${stickHTML(r,pat)}</div>
+    <div class="legend">${PERL[r.per]||r.per+' Noten pro Klick'} · &gt; = Akzent${r.pat.some(n=>n.g)?' · kleine Buchstaben = Vorschlag':''}${r.pat.some(n=>n.h==='-')?' · Punkt = Pause':''}</div>
     <div class="variation"><div><small>Variation heute</small><p>${v.t}</p></div><button class="btn small" id="roll">Andere</button></div>
     <div class="transport">
       <button class="btn" id="stop" ${st==='idle'&&idx===0&&!acc?'disabled':''}>Neu</button>
@@ -399,6 +426,7 @@ function render(){
 let lastPos=-1;
 function paintProgress(e){
   const r=cur(); if(!r)return;
+  paintVar(r,e);
   const bars=desk.querySelectorAll('.ph');
   const bpm=document.getElementById('bpm'); if(bpm)bpm.textContent=tempoAt(r,e);
   const phn=document.getElementById('phn'), rem=document.getElementById('rem');
@@ -420,7 +448,8 @@ function frame(){
     const now=ctx.currentTime;
     if(now<countEnd){const rem=document.getElementById('rem');if(rem)rem.textContent='Einzählen …'}
     else paintProgress(now-playStart);
-    let pos=-1; while(q.length&&q[0].t<=now)pos=q.shift().pos;
+    let pos=-1,vi=shownVar; while(q.length&&q[0].t<=now){const it=q.shift();pos=it.pos;vi=it.vi}
+    if(vi!==shownVar){shownVar=vi;const sk=document.getElementById('stk'),rr=cur();if(sk&&rr)sk.innerHTML=stickHTML(rr,pattern(rr,vi));lastPos=-1}
     if(pos>=0&&pos!==lastPos){desk.querySelectorAll('.n.hit').forEach(n=>n.classList.remove('hit'));
       const el=desk.querySelector(`.n[data-k="${pos}"]`); if(el)el.classList.add('hit'); lastPos=pos}
   }
@@ -436,7 +465,7 @@ function renderPlan(){
   const vo=document.getElementById('vol');vo.value=S.vol;vo.oninput=()=>{S.vol=+vo.value;save();if(master)master.gain.value=S.vol*1.8};
   document.getElementById('plan').innerHTML=allRud().map(r=>`<div class="row">
      <input type="checkbox" id="c-${r.id}" ${S.sel.includes(r.id)?'checked':''} aria-label="${r.name} üben">
-     <label class="nm" for="c-${r.id}"><b>${r.name}${r.custom?'<span class="tag">eigene</span>':''}</b><span>${r.pat.map(n=>(n.a?'&gt;':'')+(n.g||'')+n.h).join(' ')}</span>${r.custom?`<button class="del" data-del="${r.id}">Entfernen</button>`:''}</label>
+     <label class="nm" for="c-${r.id}"><b>${r.name}${r.custom?'<span class="tag">eigene</span>':''}${r.vars?'<span class="tag">'+r.vars.length+' Varianten</span>':''}</b><span>${r.pat.map(n=>(n.a?'&gt;':'')+(n.g||'')+n.h).join(' ')}</span>${r.custom?`<button class="del" data-del="${r.id}">Entfernen</button>`:''}</label>
      <div class="mini"><button data-d="-2" data-id="${r.id}" aria-label="langsamer">−</button><output>${S.bpm[r.id]}</output><button data-d="2" data-id="${r.id}" aria-label="schneller">+</button></div></div>`).join('');
   allRud().forEach(r=>document.getElementById('c-'+r.id).onchange=e=>{
     if(st==='run')pause();
